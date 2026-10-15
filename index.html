@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="sk">
+<head>
+    <meta charset="UTF-8">
+    <title>Môj Webový Obchod</title>
+    <style>
+        body { font-family: Arial, sans-serif; max-width: 800px; margin: 30px auto; padding: 20px; background: #f4f6f9; color: #333; }
+        .kontajner { display: flex; gap: 20px; }
+        .karta { background: white; padding: 20px; border-radius: 8px; flex: 1; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+        .polozka { display: flex; justify-content: space-between; margin-bottom: 12px; padding-bottom: 12px; border-bottom: 1px solid #eee; align-items: center; }
+        button { background: #0070f3; color: white; border: none; padding: 6px 12px; border-radius: 4px; cursor: pointer; }
+        button:disabled { background: #ccc; cursor: not-allowed; }
+        .tlacidla-zlav { display: flex; gap: 10px; margin: 15px 0; }
+        .btn-platba { background: #22c55e; width: 100%; padding: 12px; font-weight: bold; font-size: 16px; border-radius: 6px; color: white; border: none; cursor: pointer; }
+    </style>
+</head>
+<body>
+    <h1>=== OBCHOD ===</h1>
+    <div class="kontajner">
+        
+        <!-- PONUKA TOVARU -->
+        <div class="karta">
+            <h2>Ponuka produktov</h2>
+            <div id="produkty-box"></div>
+        </div>
+        
+        <!-- NÁKUPNÝ KOŠÍK -->
+        <div class="karta">
+            <h2>--- KOŠÍK ---</h2>
+            <ul id="kosik-box"></ul>
+            <hr>
+            <h3>Celková cena: <span id="cena-box">0.00</span> €</h3>
+            
+            <div class="tlacidla-zlav">
+                <button onclick="uplatnitClubcard()" style="background:#4f46e5;">💳 Skenovať Clubcard (-10%)</button>
+                <button onclick="uplatnitKupon()" style="background:#db2777;">🎟️ Použiť Kupón (-20%)</button>
+            </div>
+            
+            <label for="platba">Zvoľte spôsob platby:</label>
+            <select id="platba" style="width:100%; padding:8px; margin: 10px 0 20px 0;">
+                <option value="1">1. Hotovosť</option>
+                <option value="2">2. Karta</option>
+                <option value="3">3. Kupón</option>
+            </select>
+            
+            <button class="btn-platba" onclick="zaplatit()">Zaplatiť nákup</button>
+        </div>
+        
+    </div>
+
+    <script>
+        const API_URL = '/.netlify/functions/api';
+
+        async function obnovStranku() {
+            let res = await fetch(`${API_URL}/stav`);
+            let data = await res.json();
+            
+            let prodHtml = "";
+            data.produkty.forEach(p => {
+                let jeVypredane = p.sklad === 0;
+                let textSkladu = jeVypredane ? "VYPREDANÉ" : "sklad: " + p.sklad;
+                prodHtml += `
+                    <div class="polozka">
+                        <div><strong>${p.nazov}</strong> - ${p.druh} - ${p.cena.toFixed(2)} €</div>
+                        <button onclick="kupit(${p.id})" ${jeVypredane ? 'disabled' : ''}>
+                            ${jeVypredane ? 'Vypredané' : 'Kúpiť (' + textSkladu + ')'}
+                        </button>
+                    </div>`;
+            });
+            document.getElementById('produkty-box').innerHTML = prodHtml;
+
+            let kosikHtml = data.kosik.length === 0 ? "<li>Košík je prázdny</li>" : "";
+            data.kosik.forEach(p => { kosikHtml += `<li>- ${p}</li>`; });
+            document.getElementById('kosik-box').innerHTML = kosikHtml;
+
+            document.getElementById('cena-box').innerText = data.celkova_cena.toFixed(2);
+        }
+
+        async function kupit(id) {
+            let res = await fetch(`${API_URL}/kupit/${id}`);
+            if(res.status === 200) {
+                alert("Produkt bol pridaný do košíka!");
+            }
+            obnovStranku();
+        }
+
+        async function uplatnitClubcard() {
+            await fetch(`${API_URL}/clubcard`);
+            alert("Clubcard bola naskenovaná! Uplatnená zľava 10 %.");
+            obnovStranku();
+        }
+
+        async function uplatnitKupon() {
+            await fetch(`${API_URL}/kupon`);
+            alert("Kupón bol uplatnený! Uplatnená zľava 20 %.");
+            obnovStranku();
+        }
+
+        async function zaplatit() {
+            let e = document.getElementById("platba");
+            let sposob = e.value;
+            let textPlatby = "";
+            
+            if (sposob === "1") textPlatby = "Platba hotovosťou bola zvolená";
+            else if (sposob === "2") textPlatby = "Platba kartou bola zvolená";
+            else if (sposob === "3") textPlatby = "Platba kupónom bola zvolená";
+            
+            alert(textPlatby + "\n\nĎakujeme za nákup!");
+            await fetch(`${API_URL}/zaplatit`);
+            obnovStranku();
+        }
+
+        // Prvé načítanie pri otvorení
+        obnovStranku();
+    </script>
+</body>
+</html>
