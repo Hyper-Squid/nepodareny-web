@@ -1,86 +1,103 @@
 import json
 
-# Globálne dáta obchodu
-produkty = ["jablko", "banan", "mrkva", "zemiak", "mlieko"]
-ceny = [0.50, 0.45, 0.30, 0.25, 1.20]
-druhy = ["ovocie", "ovocie", "zelenina", "zelenina", "mliečne"]
-sklad = [5, 3, 4, 6, 2]
-
-kosik = []
-celkova_cena = 0
-clubcard_uplatnena = False
-kupon_uplatneny = False
+# Základné informácie o produktoch
+ZAKLADNE_PRODUKTY = [
+    {"id": 0, "nazov": "jablko", "cena": 0.50, "druh": "ovocie"},
+    {"id": 1, "nazov": "banan", "cena": 0.45, "druh": "ovocie"},
+    {"id": 2, "nazov": "mrkva", "cena": 0.30, "druh": "zelenina"},
+    {"id": 3, "nazov": "zemiak", "cena": 0.25, "druh": "zelenina"},
+    {"id": 4, "nazov": "mlieko", "cena": 1.20, "druh": "mliečne"}
+]
 
 def handler(event, context):
-    global kosik, celkova_cena, clubcard_uplatnena, kupon_uplatneny
-    
     path = event.get("path", "")
-    
-    # Odstránenie predpony, aby sme vedeli porovnať cesty
     api_path = path.replace("/.netlify/functions/api", "")
     if not api_path:
         api_path = "/"
 
+    # Načítanie aktuálneho stavu, ktorý poslal frontend
+    try:
+        req_data = json.loads(event.get("body", "{}")) if event.get("body") else {}
+    except:
+        req_data = {}
+
+    # Ak frontend neposlal stav skladu, použijeme predvolený z vašej úlohy: [5, 3, 4, 6, 2]
+    sklad = req_data.get("sklad", [5, 3, 4, 6, 2])
+    kosik = req_data.get("kosik", [])
+    celkova_cena = req_data.get("celkova_cena", 0.0)
+    clubcard_uplatnena = req_data.get("clubcard_uplatnena", False)
+    kupon_uplatneny = req_data.get("kupon_uplatneny", False)
+
     response_body = {}
     status_code = 200
 
-    # 1. API: Stav obchodu
+    # 1. Stav obchodu
     if api_path == "/stav":
-        zoznam_produktov = []
-        for i in range(len(produkty)):
-            zoznam_produktov.append({
-                "id": i,
-                "nazov": produkty[i],
-                "cena": ceny[i],
-                "druh": druhy[i],
-                "sklad": sklad[i]
+        produkty_so_skladom = []
+        for p in ZAKLADNE_PRODUKTY:
+            produkty_so_skladom.append({
+                **p,
+                "sklad": sklad[p["id"]]
             })
         response_body = {
-            "produkty": zoznam_produktov,
+            "produkty": produkty_so_skladom,
             "kosik": kosik,
-            "celkova_cena": round(celkova_cena, 2)
+            "celkova_cena": round(celkova_cena, 2),
+            "sklad": sklad,
+            "clubcard_uplatnena": clubcard_uplatnena,
+            "kupon_uplatneny": kupon_uplatneny
         }
 
-    # 2. API: Kúpiť produkt
+    # 2. Pridanie do košíka
     elif "/kupit/" in api_path:
         try:
             pozicia = int(api_path.split("/")[-1])
             if sklad[pozicia] > 0:
-                kosik.append(produkty[pozicia])
-                celkova_cena += ceny[pozicia]
+                kosik.append(ZAKLADNE_PRODUKTY[pozicia]["nazov"])
+                celkova_cena += ZAKLADNE_PRODUKTY[pozicia]["cena"]
                 sklad[pozicia] -= 1
-                response_body = {"status": "success"}
+                response_body = {
+                    "sklad": sklad, "kosik": kosik, "celkova_cena": round(celkova_cena, 2),
+                    "clubcard_uplatnena": clubcard_uplatnena, "kupon_uplatneny": kupon_uplatneny
+                }
             else:
                 status_code = 400
                 response_body = {"error": "Vypredané"}
         except:
             status_code = 400
 
-    # 3. API: Clubcard
+    # 3. Clubcard zľava
     elif api_path == "/clubcard":
         if not clubcard_uplatnena:
             celkova_cena = celkova_cena * 0.9
             clubcard_uplatnena = True
-        response_body = {"status": "success"}
+        response_body = {
+            "sklad": sklad, "kosik": kosik, "celkova_cena": round(celkova_cena, 2),
+            "clubcard_uplatnena": clubcard_uplatnena, "kupon_uplatneny": kupon_uplatneny
+        }
 
-    # 4. API: Kupón
+    # 4. Kupón zľava
     elif api_path == "/kupon":
         if not kupon_uplatneny:
             celkova_cena = celkova_cena * 0.8
             kupon_uplatneny = True
-        response_body = {"status": "success"}
+        response_body = {
+            "sklad": sklad, "kosik": kosik, "celkova_cena": round(celkova_cena, 2),
+            "clubcard_uplatnena": clubcard_uplatnena, "kupon_uplatneny": kupon_uplatneny
+        }
 
-    # 5. API: Zaplatiť
+    # 5. Zaplatenie a reset
     elif api_path == "/zaplatit":
-        kosik = []
-        celkova_cena = 0
-        clubcard_uplatnena = False
-        kupon_uplatneny = False
-        response_body = {"status": "success"}
-        
+        response_body = {
+            "sklad": [5, 3, 4, 6, 2],
+            "kosik": [],
+            "celkova_cena": 0.0,
+            "clubcard_uplatnena": False,
+            "kupon_uplatneny": False
+        }
     else:
         status_code = 404
-        response_body = {"error": "Not Found"}
+        response_body = {"error": "Nenájdené"}
 
     return {
         "statusCode": status_code,
