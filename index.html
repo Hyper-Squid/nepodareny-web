@@ -268,9 +268,17 @@ function zaplatit() {
     zobrazKosik();
     zobrazProdukty();
 }
-
-zobrazProdukty();
-zobrazKosik();
+async function nacitajProdukty() {
+    try {
+        const r = await fetch("/api/products");
+        if (r.ok) produkty = await r.json();
+    } catch (e) {
+        console.warn("Používam predvolené produkty", e);
+    }
+    zobrazProdukty();
+    zobrazKosik();
+}
+nacitajProdukty();
 </script>
 
 </body>
