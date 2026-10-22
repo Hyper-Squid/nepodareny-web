@@ -242,10 +242,36 @@ function uplatnitKupon() {
     }
 }
 
-function zaplatit() {
+async function zaplatit() {
     if (kosik.length === 0) {
         alert("Najprv pridaj produkt do košíka!");
         return;
+    }
+
+    const items = {};
+    kosik.forEach(p => items[p.id] = (items[p.id] || 0) + 1);
+
+    const res = await fetch("/api/stock", {
+        method: "POST",
+        body: JSON.stringify({ items })
+    });
+
+    if (!res.ok) {
+        alert("Niekto bol rýchlejší, niečo už nie je na sklade. Obnovujem ponuku.");
+        kosik = [];
+        await nacitajSklad();
+        return;
+    }
+
+    const cena = Number(document.getElementById("cena-box").innerText);
+    const sposob = document.getElementById("platba").value;
+    alert("Ďakujeme za nákup!\nCelková cena: " + cena.toFixed(2) + " €\nPlatba: " + sposob);
+
+    kosik = [];
+    clubcard = false;
+    kupon = false;
+    await nacitajSklad();
+}
     }
 
     let cena = Number(document.getElementById("cena-box").innerText);
