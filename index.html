@@ -149,36 +149,38 @@ select {
 
 </div>
 
-<script>
-const produkty = [
-    { id: 0, nazov: "Jablko", cena: 0.50, druh: "Ovocie", sklad: 5 },
-    { id: 1, nazov: "Banán", cena: 0.45, druh: "Ovocie", sklad: 3 },
-    { id: 2, nazov: "Mrkva", cena: 0.30, druh: "Zelenina", sklad: 4 },
-    { id: 3, nazov: "Zemiak", cena: 0.25, druh: "Zelenina", sklad: 6 },
-    { id: 4, nazov: "Mlieko", cena: 1.20, druh: "Mliečne", sklad: 2 }
-];
+<!-- PREPOJENIE NA SUPABASE KNIŽNICE -->
+<script src="https://jsdelivr.net"></script>
+<script src="supabase.js"></script>
 
+<script>
+let produkty = [];
 let kosik = [];
 let clubcard = false;
 let kupon = false;
 
+// Zobrazovanie upravené na anglické názvy stĺpcov z databázy (name, category, price, stock)
 function zobrazProdukty() {
     let html = "";
+
+    if (produkty.length === 0) {
+        html = "<p>Načítavam produkty z databázy...</p>";
+    }
 
     produkty.forEach(function(p) {
         html += `
             <div class="polozka">
                 <div>
-                    <strong>${p.nazov}</strong><br>
-                    ${p.druh}<br>
-                    ${p.cena.toFixed(2)} €<br>
-                    Sklad: ${p.sklad}
+                    <strong>${p.name}</strong><br>
+                    ${p.category || 'Bez kategórie'}<br>
+                    ${Number(p.price).toFixed(2)} €<br>
+                    Sklad: ${p.stock}
                 </div>
 
                 <button
                     onclick="kupit(${p.id})"
-                    ${p.sklad === 0 ? "disabled" : ""}>
-                    ${p.sklad === 0 ? "Vypredané" : "Kúpiť"}
+                    ${p.stock === 0 ? "disabled" : ""}>
+                    ${p.stock === 0 ? "Vypredané" : "Kúpiť"}
                 </button>
             </div>
         `;
@@ -188,11 +190,11 @@ function zobrazProdukty() {
 }
 
 function kupit(id) {
-    let produkt = produkty[id];
+    let produkt = produkty.find(p => p.id === id);
 
-    if (produkt && produkt.sklad > 0) {
+    if (produkt && produkt.stock > 0) {
         kosik.push(produkt);
-        produkt.sklad--;
+        produkt.stock--;
 
         zobrazProdukty();
         zobrazKosik();
@@ -207,10 +209,10 @@ function zobrazKosik() {
         html = "<li>Košík je prázdny</li>";
     } else {
         kosik.forEach(function(p, index) {
-            html += `<li>${p.nazov} - ${p.cena.toFixed(2)} €
+            html += `<li>${p.name} - ${Number(p.price).toFixed(2)} €
             <button onclick="odstranit(${index})">X</button></li>`;
 
-            cena += p.cena;
+            cena += Number(p.price);
         });
     }
 
@@ -232,7 +234,7 @@ function zobrazKosik() {
 function odstranit(index) {
     let produkt = kosik[index];
 
-    produkt.sklad++;
+    produkt.stock++;
     kosik.splice(index, 1);
 
     zobrazProdukty();
@@ -255,52 +257,71 @@ function uplatnitKupon() {
     }
 }
 
-// Načíta aktuálny sklad zo servera (Netlify Function + Blobs)
+// Načítanie dát zo Supabase (používa správny stĺpec 'stock')
 async function nacitajSklad() {
     try {
-        const res = await fetch("/api/stock");
-        const sklad = await res.json();
-        produkty.forEach(p => p.sklad = sklad[p.id]);
+        const { data, error } = await supabase
+            .from("products")
+            .select("*");
+
+        if (error) throw error;
+        
+        produkty = data;
     } catch (e) {
-        console.warn("Sklad sa nepodarilo načítať", e);
+        console.error("Sklad sa nepodarilo načítať zo Supabase", e);
     }
     zobrazProdukty();
     zobrazKosik();
 }
 
+// Odpočítavanie stavu zásob po zaplatení v anglickom stĺpci 'stock'
 async function zaplatit() {
     if (kosik.length === 0) {
         alert("Najprv pridaj produkt do košíka!");
         return;
     }
 
-    const items = {};
-    kosik.forEach(p => items[p.id] = (items[p.id] || 0) + 1);
+    try {
+        for (const produkt of kosik) {
+            const { data: aktualnyProdukt, error: fetchError } = await supabase
+                .from("products")
+                .select("stock")
+                .eq("id", produkt.id)
+                .single();
 
-    const res = await fetch("/api/stock", {
-        method: "POST",
-        body: JSON.stringify({ items })
-    });
+            if (fetchError) throw fetchError;
 
-    if (!res.ok) {
-        alert("Niekto bol rýchlejší, niečo už nie je na sklade. Obnovujem ponuku.");
-        kosik = [];
-        await nacitajSklad();
-        return;
+            if (aktualnyProdukt.stock <= 0) {
+                alert(`Produkt ${produkt.name} sa medzičasom vypredal!`);
+                kosik = [];
+                await nacitajSklad();
+                return;
+            }
+
+            const { error: updateError } = await supabase
+                .from("products")
+                .update({ stock: aktualnyProdukt.stock - 1 })
+                .eq("id", produkt.id);
+
+            if (updateError) throw updateError;
+        }
+
+        const cena = Number(document.getElementById("cena-box").innerText);
+        const sposob = document.getElementById("platba").value;
+        alert("Ďakujeme za nákup!\nCelková cena: " + cena.toFixed(2) + " €\nPlatba: " + sposob);
+
+    } catch (error) {
+        alert("Nákup zlyhal. Skontroluj internetové pripojenie alebo RLS nastavenia v Supabase.");
+        console.error(error);
     }
-
-    const cena = Number(document.getElementById("cena-box").innerText);
-    const sposob = document.getElementById("platba").value;
-    alert("Ďakujeme za nákup!\nCelková cena: " + cena.toFixed(2) + " €\nPlatba: " + sposob);
 
     kosik = [];
     clubcard = false;
     kupon = false;
     await nacitajSklad();
 }
-    
-nacitajSklad()
-    
+
+document.addEventListener('DOMContentLoaded', nacitajSklad);
 </script>
 
 </body>
