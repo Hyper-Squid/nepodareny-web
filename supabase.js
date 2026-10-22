@@ -1,59 +1,64 @@
-
-const SUPABASE_URL = "https://qaondcjyzvipjvaejzqi.supabase.co/rest/v1/";
+// 1. Správna inicializácia Supabase klienta
+const SUPABASE_URL = "https://qaondcjyzvipjvaejzqi.supabase.co"; // Odstránené /rest/v1/, Supabase si to pridá samo
 const SUPABASE_KEY = "sb_publishable_WdryToMPqpsjK6Qcpi1I5g_-keCM_1c";
 
-const db = window.supabase.createClient(
-https://qaondcjyzvipjvaejzqi.supabase.co/rest/v1/,
-sb_publishable_WdryToMPqpsjK6Qcpi1I5g_-keCM_1c
-);
+const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
-async function loadProducts() {
-  const { data, error } = await db
-    .from("products")
-    .select("*");
-
-  if (error) {
-    console.error(error.message);
-    return [];
-  }
-
-  console.log("Products:", data);
-  return data;
-}
-
-loadProducts();
-
-
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script src="supabase.js"></script>
-
-// 1. Run this function immediately when the website opens/refreshes
+// 2. Funkcia na načítanie produktov z databázy hneď pri otvorení/refresnutí stránky
 async function loadProductsFromDatabase() {
-  // Fetching the fresh inventory status from Supabase
   const { data: products, error } = await supabase
     .from('products')
     .select('*');
 
   if (error) {
-    console.error("Error loading products:", error);
+    console.error("Chyba pri načítaní produktov:", error.message);
     return;
   }
 
-  // 2. Clear your old HTML list and render the updated items dynamically
+  // Uisti sa, že v index.html máš element s id="products-list"
   const productContainer = document.getElementById('products-list');
+  if (!productContainer) {
+    console.error("V HTML chýba element s id='products-list'!");
+    return;
+  }
+
   productContainer.innerHTML = ''; 
 
   products.forEach(product => {
     productContainer.innerHTML += `
-      <div class="product">
+      <div class="product" style="border: 1px solid #ccc; padding: 10px; margin: 10px 0;">
         <h3>${product.name}</h3>
-        <p>In Stock: ${product.stock}</p>
-        <button onclick="buyProduct('${product.id}', ${product.stock})">Buy</button>
+        <p>Cena: ${product.price} €</p>
+        <p>Na sklade: <span id="stock-${product.id}">${product.stock}</span></p>
+        <button onclick="buyProduct('${product.id}', ${product.stock})">Kúpiť</button>
       </div>
     `;
   });
 }
 
-// Call the function as soon as the DOM content is loaded
+// 3. Nová funkcia, ktorá odpočíta kus z databázy po kliknutí na "Kúpiť"
+async function buyProduct(productId, currentStock) {
+  if (currentStock <= 0) {
+    alert("Tento produkt je už vypredaný!");
+    return;
+  }
+
+  // Odpočítame 1 kus priamo v Supabase tabuľke
+  const { error } = await supabase
+    .from('products')
+    .update({ stock: currentStock - 1 })
+    .eq('id', productId);
+
+  if (error) {
+    alert("Nákup zlyhal! Skontroluj RLS nastavenia v Supabase.");
+    console.error(error.message);
+  } else {
+    alert("Produkt úspešne kúpený!");
+    // Po úspešnom nákupe znovu načítame databázu, aby sa číslo na obrazovke zmenilo
+    loadProductsFromDatabase();
+  }
+}
+
+// Spustenie načítania hneď po tom, čo prehliadač spracuje HTML struktúru
 document.addEventListener('DOMContentLoaded', loadProductsFromDatabase);
 
