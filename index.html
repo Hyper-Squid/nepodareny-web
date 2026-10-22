@@ -1,306 +1,213 @@
+
 <!DOCTYPE html>
 <html lang="sk">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Môj webový obchod</title>
-
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Admin panel</title>
 <style>
-body {
-    font-family: Arial, sans-serif;
-    max-width: 1000px;
-    margin: 40px auto;
-    padding: 20px;
-    background: #f4f6f9;
-    color: #333;
-}
-
-.kontajner {
-    display: flex;
-    gap: 20px;
-    align-items: stretch;
-}
-
-.admin-button {
-    background: #8b5cf6;
-    color: white;
-    padding: 10px 16px;
-    border-radius: 8px;
-    text-decoration: none;
-    font-weight: bold;
-}
-    
-.karta {
-    background: white;
-    padding: 20px;
-    border-radius: 9px;
-    flex: 1;
-    min-width: 0;
-    box-shadow: 0 2px 5px #0001;
-}
-
-.polozka {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    gap: 10px;
-    border-bottom: 1px solid #eee;
-    padding: 12px 0;
-}
-
-button {
-    background: #4f46e5;
-    color: white;
-    border: none;
-    padding: 9px 12px;
-    border-radius: 5px;
-    cursor: pointer;
-}
-
-button:disabled {
-    background: #aaa;
-    cursor: not-allowed;
-}
-
-.tlacidla-zlav {
-    display: flex;
-    gap: 10px;
-    margin: 15px 0;
-}
-
-.tlacidla-zlav button {
-    flex: 1;
-}
-
-.kupon {
-    background: #db2777;
-}
-
-.btn-platba {
-    background: #22c55e;
-    width: 100%;
-    padding: 13px;
-    font-weight: bold;
-    margin-top: 15px;
-}
-
-select {
-    width: 100%;
-    padding: 10px;
-    margin-top: 10px;
-}
-
-@media (max-width: 650px) {
-    .kontajner {
-        flex-direction: column;
-    }
-}
+body{font-family:Arial,sans-serif;max-width:1000px;margin:30px auto;padding:15px;background:#f4f6f9;color:#222}
+.card{background:white;padding:20px;border-radius:12px;margin-bottom:20px}
+input{box-sizing:border-box;width:100%;padding:10px;border:1px solid #ccc;border-radius:6px}
+button{padding:10px 14px;border:0;border-radius:6px;background:#4f46e5;color:white;cursor:pointer;margin:4px}
+.red{background:#dc2626}
+.green{background:#16a34a}
+table{width:100%;border-collapse:collapse;margin:15px 0}
+td,th{text-align:left;padding:7px;border-bottom:1px solid #ddd}
+.hidden{display:none}
+#status{white-space:pre-wrap}
 </style>
 </head>
-
 <body>
+<h1>🔧 Admin panel</h1>
 
-<a href="/admin.html" class="admin-button"
-   style="position:absolute;top:15px;right:20px;">
-    Admin panel
-</a>
+<div id="login" class="card">
+<h2>Prihlásenie</h2>
+<input id="password" type="password" placeholder="Admin heslo">
+<button id="loginBtn">Prihlásiť sa</button>
+<p id="loginError"></p>
+</div>
 
-<h1>=== OBCHOD ===</h1>
+<div id="panel" class="card hidden">
+<h2>Správa produktov</h2>
+<a href="/">Späť do obchodu</a>
+<button id="logout" class="red">Odhlásiť</button>
 
-<div class="kontajner">
+<table>
+<thead><tr><th>Názov</th><th>Druh</th><th>Cena (€)</th><th>Sklad</th><th></th></tr></thead>
+<tbody id="rows"></tbody>
+</table>
 
-    <div class="karta">
-        <h2>Ponuka produktov</h2>
-        <div id="produkty-box"></div>
-    </div>
-
-    <div class="karta">
-        <h2>--- KOŠÍK ---</h2>
-        <ul id="kosik-box">
-            <li>Košík je prázdny</li>
-        </ul>
-
-        <hr>
-
-        <h3>Celková cena: <span id="cena-box">0.00</span> €</h3>
-
-        <div class="tlacidla-zlav">
-            <button id="clubcard" onclick="uplatnitClubcard()">
-                💳 Skenovať Clubcard (-10%)
-            </button>
-
-            <button id="kupon" class="kupon" onclick="uplatnitKupon()">
-                🎟️ Použiť kupón (-20%)
-            </button>
-        </div>
-
-        <label for="platba">Zvoľte spôsob platby:</label>
-
-        <select id="platba">
-            <option value="Hotovosť">1. Hotovosť</option>
-            <option value="Karta">2. Karta</option>
-            <option value="Kupón">3. Kupón</option>
-        </select>
-
-        <button class="btn-platba" onclick="zaplatit()">
-            Zaplatiť nákup
-        </button>
-    </div>
-
+<button id="add">+ Pridať produkt</button>
+<button id="save" class="green">Uložiť zmeny</button>
+<p id="status"></p>
 </div>
 
 <script>
-const produkty = [
-    { id: 0, nazov: "Jablko", cena: 0.50, druh: "Ovocie", sklad: 5 },
-    { id: 1, nazov: "Banán", cena: 0.45, druh: "Ovocie", sklad: 3 },
-    { id: 2, nazov: "Mrkva", cena: 0.30, druh: "Zelenina", sklad: 4 },
-    { id: 3, nazov: "Zemiak", cena: 0.25, druh: "Zelenina", sklad: 6 },
-    { id: 4, nazov: "Mlieko", cena: 1.20, druh: "Mliečne", sklad: 2 }
-];
+const $ = id => document.getElementById(id);
+let password = "";
+let products = [];
+let busy = false;
 
-let kosik = [];
-let clubcard = false;
-let kupon = false;
+async function request(method = "GET", body) {
+    const headers = {};
+    if (password) headers.Authorization = "Bearer " + password;
+    if (body !== undefined) headers["Content-Type"] = "application/json";
 
-function zobrazProdukty() {
-    let html = "";
-
-    produkty.forEach(function(p) {
-        html += `
-            <div class="polozka">
-                <div>
-                    <strong>${p.nazov}</strong><br>
-                    ${p.druh}<br>
-                    ${p.cena.toFixed(2)} €<br>
-                    Sklad: ${p.sklad}
-                </div>
-
-                <button
-                    onclick="kupit(${p.id})"
-                    ${p.sklad === 0 ? "disabled" : ""}>
-                    ${p.sklad === 0 ? "Vypredané" : "Kúpiť"}
-                </button>
-            </div>
-        `;
+    const response = await fetch("/api/products", {
+        method,
+        headers,
+        body: body === undefined ? undefined : JSON.stringify(body),
+        cache: "no-store"
     });
 
-    document.getElementById("produkty-box").innerHTML = html;
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(data.error || "HTTP " + response.status);
+    return data;
 }
 
-function kupit(id) {
-    let produkt = produkty[id];
-
-    if (produkt && produkt.sklad > 0) {
-        kosik.push(produkt);
-        produkt.sklad--;
-
-        zobrazProdukty();
-        zobrazKosik();
-    }
-}
-
-function zobrazKosik() {
-    let html = "";
-    let cena = 0;
-
-    if (kosik.length === 0) {
-        html = "<li>Košík je prázdny</li>";
-    } else {
-        kosik.forEach(function(p, index) {
-            html += `<li>${p.nazov} - ${p.cena.toFixed(2)} €
-            <button onclick="odstranit(${index})">X</button></li>`;
-
-            cena += p.cena;
-        });
+async function login() {
+    if (busy) return;
+    password = $("password").value.trim();
+    if (!password) {
+        $("loginError").textContent = "Zadaj heslo.";
+        return;
     }
 
-    if (clubcard) {
-        cena = cena * 0.9;
-    }
+    busy = true;
+    $("loginBtn").disabled = true;
+    $("loginError").textContent = "Prihlasujem...";
 
-    if (kupon) {
-        cena = cena * 0.8;
-    }
-
-    document.getElementById("kosik-box").innerHTML = html;
-    document.getElementById("cena-box").innerText = cena.toFixed(2);
-
-    document.getElementById("clubcard").disabled = clubcard;
-    document.getElementById("kupon").disabled = kupon;
-}
-
-function odstranit(index) {
-    let produkt = kosik[index];
-
-    produkt.sklad++;
-    kosik.splice(index, 1);
-
-    zobrazProdukty();
-    zobrazKosik();
-}
-
-function uplatnitClubcard() {
-    if (!clubcard) {
-        clubcard = true;
-        zobrazKosik();
-        alert("Clubcard použitá! Zľava 10 %.");
-    }
-}
-
-function uplatnitKupon() {
-    if (!kupon) {
-        kupon = true;
-        zobrazKosik();
-        alert("Kupón použitý! Zľava 20 %.");
-    }
-}
-
-// Načíta aktuálny sklad zo servera (Netlify Function + Blobs)
-async function nacitajSklad() {
     try {
-        const res = await fetch("/api/stock");
-        const sklad = await res.json();
-        produkty.forEach(p => p.sklad = sklad[p.id]);
+        await request("POST");
+        products = await request("GET");
+
+        if (!Array.isArray(products)) throw new Error("Neplatná odpoveď servera.");
+
+        $("login").classList.add("hidden");
+        $("panel").classList.remove("hidden");
+        $("loginError").textContent = "";
+        render();
     } catch (e) {
-        console.warn("Sklad sa nepodarilo načítať", e);
+        password = "";
+        $("loginError").textContent = "Prihlásenie alebo načítanie zlyhalo: " + e.message;
+    } finally {
+        busy = false;
+        $("loginBtn").disabled = false;
     }
-    zobrazProdukty();
-    zobrazKosik();
 }
 
-async function zaplatit() {
-    if (kosik.length === 0) {
-        alert("Najprv pridaj produkt do košíka!");
-        return;
-    }
+function render() {
+    $("rows").replaceChildren();
 
-    const items = {};
-    kosik.forEach(p => items[p.id] = (items[p.id] || 0) + 1);
+    products.forEach((p, index) => {
+        const tr = document.createElement("tr");
 
-    const res = await fetch("/api/stock", {
-        method: "POST",
-        body: JSON.stringify({ items })
+        for (const key of ["nazov", "druh", "cena", "sklad"]) {
+            const td = document.createElement("td");
+            const input = document.createElement("input");
+
+            input.value = p[key] ?? "";
+            input.type = (key === "cena" || key === "sklad") ? "number" : "text";
+
+            if (key === "cena") {
+                input.min = "0";
+                input.step = "0.01";
+            }
+
+            if (key === "sklad") {
+                input.min = "0";
+                input.step = "1";
+            }
+
+            input.addEventListener("input", () => {
+                products[index][key] = input.value;
+            });
+
+            td.appendChild(input);
+            tr.appendChild(td);
+        }
+
+        const td = document.createElement("td");
+        const del = document.createElement("button");
+        del.textContent = "Odstrániť";
+        del.className = "red";
+
+        del.onclick = () => {
+            products.splice(index, 1);
+            render();
+            status("Produkt odstránený z návrhu. Klikni na Uložiť zmeny.", true);
+        };
+
+        td.appendChild(del);
+        tr.appendChild(td);
+        $("rows").appendChild(tr);
     });
-
-    if (!res.ok) {
-        alert("Niekto bol rýchlejší, niečo už nie je na sklade. Obnovujem ponuku.");
-        kosik = [];
-        await nacitajSklad();
-        return;
-    }
-
-    const cena = Number(document.getElementById("cena-box").innerText);
-    const sposob = document.getElementById("platba").value;
-    alert("Ďakujeme za nákup!\nCelková cena: " + cena.toFixed(2) + " €\nPlatba: " + sposob);
-
-    kosik = [];
-    clubcard = false;
-    kupon = false;
-    await nacitajSklad();
 }
 
-nacitajSklad();
-</script>
+function addProduct() {
+    products.push({nazov:"", druh:"", cena:"0.00", sklad:"0"});
+    render();
+    status("Nový produkt pridaný. Vyplň údaje a klikni na Uložiť zmeny.", true);
+    $("rows").lastElementChild?.querySelector("input")?.focus();
+}
 
+function status(message, ok = false) {
+    $("status").textContent = message;
+    $("status").style.color = ok ? "green" : "#dc2626";
+}
+
+async function save() {
+    if (busy) return;
+
+    for (const p of products) {
+        p.nazov = String(p.nazov ?? "").trim();
+        p.druh = String(p.druh ?? "").trim();
+        p.cena = Number(p.cena);
+        p.sklad = Number(p.sklad);
+
+        if (!p.nazov || !p.druh ||
+            !Number.isFinite(p.cena) || p.cena < 0 ||
+            !Number.isInteger(p.sklad) || p.sklad < 0) {
+            status("Skontroluj názov, druh, cenu a sklad pri každom produkte.");
+            return;
+        }
+    }
+
+    busy = true;
+    $("save").disabled = true;
+    $("add").disabled = true;
+    status("Ukladám...");
+
+    try {
+        products = await request("PUT", products);
+        render();
+        status("Produkty boli uložené do databázy!", true);
+    } catch (e) {
+        status("Uloženie zlyhalo: " + e.message);
+    } finally {
+        busy = false;
+        $("save").disabled = false;
+        $("add").disabled = false;
+    }
+}
+
+$("loginBtn").addEventListener("click", login);
+$("password").addEventListener("keydown", e => {
+    if (e.key === "Enter") login();
+});
+$("add").addEventListener("click", addProduct);
+$("save").addEventListener("click", save);
+
+$("logout").addEventListener("click", () => {
+    password = "";
+    products = [];
+    $("password").value = "";
+    $("panel").classList.add("hidden");
+    $("login").classList.remove("hidden");
+    $("rows").replaceChildren();
+    $("status").textContent = "";
+});
+</script>
 </body>
 </html>
