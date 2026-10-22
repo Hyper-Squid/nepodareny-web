@@ -2,7 +2,7 @@
 const SUPABASE_URL = "https://qaondcjyzvipjvaejzqi.supabase.co"; // Odstránené /rest/v1/, Supabase si to pridá samo
 const SUPABASE_KEY = "sb_publishable_WdryToMPqpsjK6Qcpi1I5g_-keCM_1c";
 
-const supabase = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+const supabase = Supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
 // 2. Funkcia na načítanie produktov z databázy hneď pri otvorení/refresnutí stránky
 async function loadProductsFromDatabase() {
