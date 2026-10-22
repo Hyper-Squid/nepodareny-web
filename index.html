@@ -1,4 +1,3 @@
-
 <!DOCTYPE html>
 <html lang="sk">
 <head>
@@ -242,6 +241,19 @@ function uplatnitKupon() {
     }
 }
 
+// Načíta aktuálny sklad zo servera (Netlify Function + Blobs)
+async function nacitajSklad() {
+    try {
+        const res = await fetch("/api/stock");
+        const sklad = await res.json();
+        produkty.forEach(p => p.sklad = sklad[p.id]);
+    } catch (e) {
+        console.warn("Sklad sa nepodarilo načítať", e);
+    }
+    zobrazProdukty();
+    zobrazKosik();
+}
+
 async function zaplatit() {
     if (kosik.length === 0) {
         alert("Najprv pridaj produkt do košíka!");
@@ -272,47 +284,9 @@ async function zaplatit() {
     kupon = false;
     await nacitajSklad();
 }
-    }
 
-    let cena = Number(document.getElementById("cena-box").innerText);
-    let sposob = document.getElementById("platba").value;
-
-    alert(
-        "Ďakujeme za nákup!\n" +
-        "Celková cena: " + cena.toFixed(2) + " €\n" +
-        "Platba: " + sposob
-    );
-
-    kosik.forEach(function(p) {
-        // Produkty už boli odpočítané zo skladu.
-    });
-
-    kosik = [];
-    clubcard = false;
-    kupon = false;
-
-    zobrazKosik();
-    zobrazProdukty();
-}
-async function nacitajProdukty() {
-    try {
-        const r = await fetch("/api/products");
-        if (r.ok) produkty = await r.json();
-    } catch (e) {
-        console.warn("Používam predvolené produkty", e);
-    }
-   async function nacitajSklad() {
-    const res = await fetch("/api/stock");
-    const sklad = await res.json();
-    produkty.forEach(p => p.sklad = sklad[p.id]);
-    zobrazProdukty();
-    zobrazKosik();
-}
 nacitajSklad();
-}
-nacitajProdukty();
 </script>
 
 </body>
 </html>
-
