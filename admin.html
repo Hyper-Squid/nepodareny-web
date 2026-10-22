@@ -1,132 +1,293 @@
+
 <!DOCTYPE html>
 <html lang="sk">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<meta name="robots" content="noindex, nofollow">
-<title>Admin panel</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex,nofollow">
+<title>Hyper Store – Admin</title>
+
 <style>
-  body { font-family: Arial, sans-serif; max-width: 900px; margin: 40px auto; padding: 20px; background: #f4f6f9; color: #333; }
-  .karta { background: #fff; padding: 20px; border-radius: 9px; box-shadow: 0 2px 5px #0001; }
-  button { background: #4f46e5; color: #fff; border: none; padding: 9px 14px; border-radius: 5px; cursor: pointer; }
-  button.red { background: #dc2626; }
-  button.green { background: #22c55e; font-weight: bold; }
-  input { padding: 8px; border: 1px solid #ccc; border-radius: 5px; width: 100%; box-sizing: border-box; }
-  table { width: 100%; border-collapse: collapse; margin: 15px 0; }
-  th, td { text-align: left; padding: 6px; border-bottom: 1px solid #eee; }
-  .row { display: flex; gap: 10px; justify-content: space-between; align-items: center; flex-wrap: wrap; }
-  #stav { margin-top: 10px; font-weight: bold; }
-  .hidden { display: none; }
+*{box-sizing:border-box}
+body{margin:0;padding:25px;background:#0b0b10;color:#f5f5f5;font-family:Arial,sans-serif}
+main{max-width:1000px;margin:auto}
+.card{background:#17171f;border:1px solid #30303b;border-radius:14px;padding:24px;margin-bottom:20px}
+h1{color:#a78bfa}
+input{width:100%;min-width:0;padding:11px;margin:5px 0;background:#101016;color:white;border:1px solid #414150;border-radius:7px}
+button{padding:10px 14px;border:0;border-radius:7px;background:#8b5cf6;color:white;cursor:pointer;font-weight:bold}
+button:disabled{opacity:.5;cursor:not-allowed}
+.red{background:#dc2626}
+.green{background:#16a34a}
+.row{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
+.hidden{display:none!important}
+table{width:100%;border-collapse:collapse;margin:20px 0}
+th,td{text-align:left;padding:8px;border-bottom:1px solid #333;vertical-align:middle}
+#status{white-space:pre-wrap;margin-top:15px}
+a{color:#c4b5fd}
+@media(max-width:650px){
+ body{padding:10px}
+ .card{padding:14px;overflow-x:auto}
+ table{min-width:650px}
+}
 </style>
 </head>
 <body>
-<h1>🔧 Admin panel</h1>
+<main>
+<h1>HYPER STORE — Admin</h1>
 
-<div id="login" class="karta">
-  <h2>Prihlásenie</h2>
-  <input type="password" id="heslo" placeholder="Admin heslo" onkeydown="if(event.key==='Enter')prihlasit()">
-  <p><button onclick="prihlasit()">Prihlásiť sa</button></p>
-  <div id="login-chyba" style="color:#dc2626"></div>
+<section id="login" class="card">
+<h2>Prihlásenie</h2>
+<form id="loginForm">
+<input id="password" type="password" placeholder="Admin heslo" required autocomplete="current-password">
+<button id="loginButton" type="submit">Prihlásiť sa</button>
+</form>
+<p id="loginError"></p>
+</section>
+
+<section id="panel" class="card hidden">
+<div class="row">
+<h2>Správa produktov</h2>
+<div>
+<a href="/">Späť do obchodu</a>
+<button class="red" id="logoutButton">Odhlásiť</button>
+</div>
 </div>
 
-<div id="panel" class="karta hidden">
-  <div class="row">
-    <h2>Produkty</h2>
-    <div>
-      <a href="/">← Späť do obchodu</a>
-      <button class="red" onclick="odhlasit()">Odhlásiť</button>
-    </div>
-  </div>
-  <table>
-    <thead><tr><th>Názov</th><th>Druh</th><th>Cena (€)</th><th>Sklad</th><th></th></tr></thead>
-    <tbody id="telo"></tbody>
-  </table>
-  <div class="row">
-    <button onclick="pridat()">➕ Pridať produkt</button>
-    <button class="green" onclick="ulozit()">💾 Uložiť zmeny</button>
-  </div>
-  <div id="stav"></div>
+<p>Pridávaj produkty, upravuj ceny a skladové zásoby.</p>
+
+<div style="overflow-x:auto">
+<table>
+<thead>
+<tr>
+<th>Názov</th>
+<th>Druh</th>
+<th>Cena (€)</th>
+<th>Sklad</th>
+<th>Akcia</th>
+</tr>
+</thead>
+<tbody id="products"></tbody>
+</table>
 </div>
+
+<div class="row">
+<button id="addButton">+ Pridať produkt</button>
+<button class="green" id="saveButton">Uložiť zmeny</button>
+</div>
+<p id="status"></p>
+</section>
+</main>
 
 <script>
-let heslo = sessionStorage.getItem("admin-heslo") || "";
-let produkty = [];
+const $ = id => document.getElementById(id);
 
-const $ = (id) => document.getElementById(id);
+let password = "";
+let products = [];
+let busy = false;
 
-async function prihlasit() {
-  heslo = $("heslo").value || heslo;
-  const r = await fetch("/api/products", {
-    method: "POST",
-    headers: { Authorization: "Bearer " + heslo },
-  });
-  if (!r.ok) {
-    $("login-chyba").textContent = "Nesprávne heslo alebo ADMIN_PASSWORD nie je nastavené.";
-    return;
+async function api(url, options = {}) {
+ const headers = new Headers(options.headers || {});
+ if (password) headers.set("Authorization", "Bearer " + password);
+ if (options.body) headers.set("Content-Type", "application/json");
+
+ const response = await fetch(url, {
+  ...options,
+  headers,
+  cache: "no-store"
+ });
+
+ const data = await response.json().catch(() => ({}));
+
+ if (!response.ok) {
+  throw new Error(data.error || "Chyba servera: " + response.status);
+ }
+
+ return data;
+}
+
+function setStatus(message, success = false) {
+ $("status").textContent = message;
+ $("status").style.color = success ? "#4ade80" : "#f87171";
+}
+
+async function login(event) {
+ event.preventDefault();
+ if (busy) return;
+
+ busy = true;
+ $("loginButton").disabled = true;
+ $("loginError").textContent = "Prihlasujem...";
+
+ password = $("password").value;
+
+ try {
+  await api("/api/products", {method:"POST"});
+  products = await api("/api/products");
+
+  if (!Array.isArray(products)) {
+   throw new Error("Server neposlal zoznam produktov.");
   }
-  sessionStorage.setItem("admin-heslo", heslo);
+
   $("login").classList.add("hidden");
   $("panel").classList.remove("hidden");
-  const data = await (await fetch("/api/products")).json();
-  produkty = data;
-  vykresli();
+  $("loginError").textContent = "";
+  render();
+ } catch (error) {
+  password = "";
+  $("loginError").textContent = error.message;
+ } finally {
+  busy = false;
+  $("loginButton").disabled = false;
+ }
 }
 
-function odhlasit() {
-  sessionStorage.removeItem("admin-heslo");
-  location.reload();
+function logout() {
+ password = "";
+ products = [];
+ $("password").value = "HyperSquid46220";
+ $("panel").classList.add("hidden");
+ $("login").classList.remove("hidden");
+ $("products").replaceChildren();
+ $("status").textContent = "";
 }
 
-function vykresli() {
-  $("telo").innerHTML = "";
-  produkty.forEach((p, i) => {
-    const tr = document.createElement("tr");
-    tr.innerHTML = `
-      <td><input value="" data-k="nazov"></td>
-      <td><input value="" data-k="druh"></td>
-      <td><input type="number" step="0.01" min="0" data-k="cena"></td>
-      <td><input type="number" step="1" min="0" data-k="sklad"></td>
-      <td><button class="red">🗑</button></td>`;
-    tr.querySelectorAll("input").forEach((inp) => {
-      inp.value = p[inp.dataset.k];
-      inp.oninput = () => { p[inp.dataset.k] = inp.value; };
-    });
-    tr.querySelector("button").onclick = () => {
-      if (confirm("Zmazať " + (p.nazov || "produkt") + "?")) {
-        produkty.splice(i, 1);
-        vykresli();
-      }
-    };
-    $("telo").appendChild(tr);
-  });
-}
+function makeInput(value, type, key, min, step) {
+ const input = document.createElement("input");
+ input.value = value ?? "";
+ input.type = type;
+ input.dataset.key = key;
 
-function pridat() {
-  produkty.push({ nazov: "", druh: "", cena: 0, sklad: 0 });
-  vykresli();
-}
+ if (type === "number") {
+  input.min = min;
+  input.step = step;
+  input.required = true;
+ }
 
-async function ulozit() {
-  $("stav").style.color = "#333";
-  $("stav").textContent = "Ukladám...";
-  const r = await fetch("/api/products", {
-    method: "PUT",
-    headers: { "Content-Type": "application/json", Authorization: "Bearer " + heslo },
-    body: JSON.stringify(produkty),
-  });
-  if (r.ok) {
-    produkty = await r.json();
-    vykresli();
-    $("stav").style.color = "#16a34a";
-    $("stav").textContent = "✅ Uložené!";
+ input.addEventListener("input", () => {
+  const row = input.closest("tr");
+  const index = Number(row.dataset.index);
+
+  if (type === "number") {
+   products[index][key] = input.value;
   } else {
-    const e = await r.json().catch(() => ({}));
-    $("stav").style.color = "#dc2626";
-    $("stav").textContent = "❌ " + (e.error || "Chyba pri ukladaní");
+   products[index][key] = input.value;
   }
+ });
+
+ return input;
 }
 
-if (heslo) { $("heslo").value = heslo; prihlasit(); }
+function render() {
+ const body = $("products");
+ body.replaceChildren();
+
+ products.forEach((product, index) => {
+  const row = document.createElement("tr");
+  row.dataset.index = index;
+
+  const fields = [
+   ["nazov", "text"],
+   ["druh", "text"],
+   ["cena", "number"],
+   ["sklad", "number"]
+  ];
+
+  fields.forEach(([key, type]) => {
+   const cell = document.createElement("td");
+   cell.appendChild(makeInput(
+    product[key],
+    type,
+    key,
+    0,
+    key === "cena" ? "0.01" : "1"
+   ));
+   row.appendChild(cell);
+  });
+
+  const actionCell = document.createElement("td");
+  const remove = document.createElement("button");
+  remove.className = "red";
+  remove.textContent = "Odstrániť";
+
+  remove.onclick = () => {
+   if (confirm("Naozaj odstrániť tento produkt?")) {
+    products.splice(index, 1);
+    render();
+   }
+  };
+
+  actionCell.appendChild(remove);
+  row.appendChild(actionCell);
+  body.appendChild(row);
+ });
+}
+
+function addProduct() {
+ products.push({
+  nazov:"",
+  druh:"",
+  cena:"0.00",
+  sklad:"0"
+ });
+
+ render();
+}
+
+async function saveProducts() {
+ if (busy) return;
+
+ for (const product of products) {
+  if (!String(product.nazov).trim()) {
+   setStatus("Každý produkt musí mať názov.");
+   return;
+  }
+
+  if (!String(product.druh).trim()) {
+   setStatus("Každý produkt musí mať druh.");
+   return;
+  }
+
+  const price = Number(product.cena);
+  const stock = Number(product.sklad);
+
+  if (!Number.isFinite(price) || price < 0 ||
+      !Number.isInteger(stock) || stock < 0) {
+   setStatus("Cena alebo sklad majú neplatnú hodnotu.");
+   return;
+  }
+
+  product.cena = price;
+  product.sklad = stock;
+  product.nazov = String(product.nazov).trim();
+  product.druh = String(product.druh).trim();
+ }
+
+ busy = true;
+ $("saveButton").disabled = true;
+ $("addButton").disabled = true;
+ setStatus("Ukladám produkty...", true);
+
+ try {
+  products = await api("/api/products", {
+   method:"PUT",
+   body:JSON.stringify(products)
+  });
+
+  render();
+  setStatus("Produkty boli úspešne uložené!", true);
+ } catch (error) {
+  setStatus("Nepodarilo sa uložiť: " + error.message);
+ } finally {
+  busy = false;
+  $("saveButton").disabled = false;
+  $("addButton").disabled = false;
+ }
+}
+
+$("loginForm").addEventListener("submit", login);
+$("logoutButton").addEventListener("click", logout);
+$("addButton").addEventListener("click", addProduct);
+$("saveButton").addEventListener("click", saveProducts);
 </script>
 </body>
 </html>
