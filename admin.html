@@ -209,10 +209,13 @@ function render() {
   remove.className = "red";
   remove.textContent = "Odstrániť";
 
-  remove.onclick = () => {
-   if (confirm("Naozaj odstrániť tento produkt?")) {
+  remove.onclick = async () => {
+  if (confirm("Naozaj odstrániť tento produkt?")) {
     products.splice(index, 1);
     render();
+    await saveProducts();
+  }
+};
    }
   };
 
