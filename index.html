@@ -299,7 +299,28 @@ async function zaplatit() {
     await nacitajSklad();
 }
 
-nacitajSklad();
+
+async function nacitajSklad() {
+    try {
+        const res = await fetch("/api/products", {
+            cache: "no-store"
+        });
+
+        if (!res.ok) {
+            throw new Error("Nepodarilo sa načítať produkty.");
+        }
+
+        produkty = await res.json();
+
+        zobrazProdukty();
+        zobrazKosik();
+    } catch (error) {
+        console.error(error);
+        document.getElementById("produkty-box").textContent =
+            "Produkty sa nepodarilo načítať. Skús obnoviť stránku.";
+    }
+}
+
 </script>
 
 </body>
